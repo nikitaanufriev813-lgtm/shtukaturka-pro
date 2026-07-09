@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-surface-light text-brand-dark dark:bg-surface-dark dark:text-white;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.card {
+  @apply rounded-xl2 bg-white shadow-card dark:bg-[#182236] dark:shadow-cardDark;
+}

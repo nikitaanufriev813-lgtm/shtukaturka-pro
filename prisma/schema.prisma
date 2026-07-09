@@ -1,0 +1,298 @@
+// Штукатурка PRO — схема базы данных
+// Запуск: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+  FOREMAN
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  DONE
+}
+
+enum RoomStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum PhotoType {
+  BEFORE
+  AFTER
+  PROCESS
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum DocumentType {
+  CONTRACT
+  KS2
+  KS3
+  WARRANTY
+}
+
+enum NotificationChannel {
+  PUSH
+  EMAIL
+  TELEGRAM
+}
+
+model User {
+  id            String    @id @default(cuid())
+  phone         String    @unique
+  email         String?   @unique
+  passwordHash  String
+  name          String
+  role          Role      @default(CLIENT)
+  telegramChatId String?
+  createdAt     DateTime  @default(now())
+
+  projectsAsClient  Project[] @relation("ClientProjects")
+  projectsAsForeman Project[] @relation("ForemanProjects")
+  reports           Report[]
+  messages          Message[]
+  notifications     Notification[]
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  clientId       String
+  client         User          @relation("ClientProjects", fields: [clientId], references: [id])
+  foremanId      String?
+  foreman        User?         @relation("ForemanProjects", fields: [foremanId], references: [id])
+  address        String
+  area           Float
+  roomsCount     Int
+  floorPlanUrl   String?
+  status         ProjectStatus @default(ACTIVE)
+  startDate      DateTime      @default(now())
+  plannedEndDate DateTime?
+  createdAt      DateTime      @default(now())
+
+  rooms           Room[]
+  stages          Stage[]
+  reports         Report[]
+  projectMaterials ProjectMaterial[]
+  estimateItems   EstimateItem[]
+  measureSquareImports MeasureSquareImport[]
+  documents       Document[]
+  payments        Payment[]
+  messages        Message[]
+  aiSummaries     AISummary[]
+}
+
+model Room {
+  id              String     @id @default(cuid())
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id])
+  name            String
+  area            Float
+  status          RoomStatus @default(PENDING)
+  progressPercent Int        @default(0)
+  planCoordX      Float?
+  planCoordY      Float?
+
+  // Данные LiDAR-скана (из собственного iOS-модуля на базе Apple RoomPlan)
+  scanSource      String?    // "ROOMPLAN_NATIVE" | "MANUAL" | null
+  scanWallsJson   Json?      // полигон стен: [{x,y}, ...] в метрах, для авто-построения плана
+  scanCeilingHeight Float?
+  scannedAt       DateTime?
+
+  reports         Report[]
+  photos          Photo[]
+  qualityChecklists QualityChecklist[]
+}
+
+model Stage {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id])
+  name          String
+  order         Int
+  plannedStart  DateTime?
+  plannedEnd    DateTime?
+  status        RoomStatus @default(PENDING)
+
+  qualityChecklists QualityChecklist[]
+  reviews           Review[]
+}
+
+model Report {
+  id                  String   @id @default(cuid())
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id])
+  roomId              String
+  room                Room     @relation(fields: [roomId], references: [id])
+  authorId            String
+  author               User    @relation(fields: [authorId], references: [id])
+  date                DateTime @default(now())
+  wallsArea           Float    @default(0)
+  ceilingArea         Float    @default(0)
+  waterShutOff        Boolean  @default(false)
+  doorsClosed         Boolean  @default(false)
+  furnitureProtected  Boolean  @default(false)
+  comment             String?
+
+  photos          Photo[]
+  materialsUsed   ReportMaterial[]
+}
+
+model Material {
+  id            String   @id @default(cuid())
+  name          String
+  unit          String
+  pricePerUnit  Float?
+
+  reportMaterials  ReportMaterial[]
+  projectMaterials ProjectMaterial[]
+}
+
+model ReportMaterial {
+  id         String   @id @default(cuid())
+  reportId   String
+  report     Report   @relation(fields: [reportId], references: [id])
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  quantity   Float
+}
+
+model ProjectMaterial {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  ordered    Float    @default(0)
+  used       Float    @default(0)
+  remaining  Float    @default(0)
+}
+
+// Смета, полученная из MeasureSquare (или введённая менеджером вручную)
+model EstimateItem {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  roomName    String?
+  description String
+  quantity    Float
+  unit        String
+  unitPrice   Float
+  total       Float
+  source      String   @default("MANUAL") // "MEASURESQUARE" | "MANUAL"
+  createdAt   DateTime @default(now())
+}
+
+// Сырые данные, пришедшие от MeasureSquare по конкретному проекту-скану,
+// для отладки и повторной обработки без нового запроса к их API.
+model MeasureSquareImport {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id])
+  msProjectId    String   // ID проекта в системе MeasureSquare
+  floorplanUrl   String?
+  rawPayload     Json
+  importedAt     DateTime @default(now())
+}
+
+model Photo {
+  id        String    @id @default(cuid())
+  reportId  String?
+  report    Report?   @relation(fields: [reportId], references: [id])
+  roomId    String
+  room      Room      @relation(fields: [roomId], references: [id])
+  url       String
+  type      PhotoType @default(PROCESS)
+  geoLat    Float?
+  geoLng    Float?
+  takenAt   DateTime  @default(now())
+}
+
+model QualityChecklist {
+  id         String   @id @default(cuid())
+  stageId    String
+  stage      Stage    @relation(fields: [stageId], references: [id])
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id])
+  criteria   Json
+  passed     Boolean  @default(false)
+  checkedBy  String?
+  checkedAt  DateTime?
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  stageId   String
+  stage     Stage    @relation(fields: [stageId], references: [id])
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id])
+  type      DocumentType
+  fileUrl   String
+  signedAt  DateTime?
+  createdAt DateTime     @default(now())
+}
+
+model Payment {
+  id         String        @id @default(cuid())
+  projectId  String
+  project    Project       @relation(fields: [projectId], references: [id])
+  amount     Float
+  dueDate    DateTime
+  paidAt     DateTime?
+  status     PaymentStatus @default(PENDING)
+  invoiceUrl String?
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id])
+  senderId       String
+  sender         User     @relation(fields: [senderId], references: [id])
+  text           String?
+  attachmentUrl  String?
+  createdAt      DateTime @default(now())
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  type      String
+  payload   Json
+  channel   NotificationChannel
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+}
+
+model AISummary {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  periodType  String
+  text        String
+  generatedAt DateTime @default(now())
+}
