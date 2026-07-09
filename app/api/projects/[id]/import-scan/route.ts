@@ -21,11 +21,14 @@ function polygonCentroid(points: { x: number; y: number }[]) {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   // TODO: авторизация — проверить, что запрос идёт от устройства,
   // привязанного к этому проекту (например, по API-ключу мобильного приложения).
 
-  const projectId = params.id;
+  const { id: projectId } = await params;
   const body = await req.json();
   const parsed = scanSchema.safeParse(body);
 
