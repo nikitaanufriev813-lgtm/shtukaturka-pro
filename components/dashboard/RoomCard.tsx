@@ -7,6 +7,7 @@ interface RoomCardProps {
   progressPercent: number;
   status: "PENDING" | "IN_PROGRESS" | "DONE";
   coverPhotoUrl?: string;
+  wallArea?: number | null;
 }
 
 const statusLabels: Record<RoomCardProps["status"], { label: string; color: string }> = {
@@ -15,13 +16,13 @@ const statusLabels: Record<RoomCardProps["status"], { label: string; color: stri
   DONE: { label: "Готово", color: "bg-success/20 text-success" },
 };
 
-export function RoomCard({ id, name, area, progressPercent, status, coverPhotoUrl }: RoomCardProps) {
+export function RoomCard({ id, name, area, progressPercent, status, coverPhotoUrl, wallArea }: RoomCardProps) {
   const statusInfo = statusLabels[status];
 
   return (
     <Link
       href={`/dashboard/rooms/${id}`}
-      className="card group flex flex-col overflow-hidden transition hover:shadow-lg"
+      className="card btn-tap group flex flex-col overflow-hidden transition hover:shadow-lg"
     >
       <div
         className="h-32 w-full bg-cover bg-center bg-brand/10"
@@ -34,7 +35,9 @@ export function RoomCard({ id, name, area, progressPercent, status, coverPhotoUr
             {statusInfo.label}
           </span>
         </div>
-        <p className="text-sm text-gray-400">{area} м²</p>
+        <p className="text-sm text-gray-400">
+          {area} м²{wallArea ? ` · стены ${wallArea} м²` : ""}
+        </p>
 
         <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
           <div

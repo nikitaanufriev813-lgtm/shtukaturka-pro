@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -23,13 +23,17 @@ export default function LoginPage() {
       redirect: false,
     });
 
-    setLoading(false);
-
     if (res?.error) {
+      setLoading(false);
       setError("Неверный телефон или пароль");
       return;
     }
-    router.push("/dashboard");
+
+    const session = await getSession();
+    const role = (session?.user as any)?.role;
+
+    setLoading(false);
+    router.push(role === "ADMIN" ? "/admin" : "/dashboard");
   }
 
   return (
@@ -68,7 +72,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-lg bg-brand py-2.5 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
+            className="btn-tap mt-2 rounded-lg bg-brand py-2.5 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
             {loading ? "Входим…" : "Войти"}
           </button>

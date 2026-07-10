@@ -91,7 +91,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-lg bg-accent py-2.5 font-semibold text-brand-dark transition hover:bg-accent-light disabled:opacity-60"
+            className="btn-tap mt-2 rounded-lg bg-accent py-2.5 font-semibold text-brand-dark transition hover:bg-accent-light disabled:opacity-60"
           >
             {loading ? "Создаём аккаунт…" : "Зарегистрироваться"}
           </button>

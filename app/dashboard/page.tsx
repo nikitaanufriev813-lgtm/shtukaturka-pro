@@ -29,7 +29,7 @@ export default async function DashboardPage() {
         <p className="text-gray-400">Добавьте свою квартиру, чтобы начать проект.</p>
         <a
           href="/onboarding"
-          className="mt-2 rounded-lg bg-accent px-6 py-2.5 font-semibold text-brand-dark hover:bg-accent-light"
+          className="btn-tap mt-2 rounded-lg bg-accent px-6 py-2.5 font-semibold text-brand-dark hover:bg-accent-light"
         >
           Добавить объект
         </a>
@@ -98,6 +98,7 @@ export default async function DashboardPage() {
               area={room.area}
               progressPercent={room.progressPercent}
               status={room.status}
+              wallArea={room.wallArea}
             />
           ))}
         </div>

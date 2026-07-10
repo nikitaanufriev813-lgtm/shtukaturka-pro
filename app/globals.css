@@ -11,8 +11,50 @@ html {
 body {
   @apply bg-surface-light text-brand-dark dark:bg-surface-dark dark:text-white;
   font-family: "Inter", system-ui, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Плавный переход всех цветных поверхностей при смене темы */
+* {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
 }
 
 .card {
   @apply rounded-xl2 bg-white shadow-card dark:bg-[#182236] dark:shadow-cardDark;
+}
+
+/* Тактильная анимация нажатия — применяется на все интерактивные кнопки/ссылки-кнопки */
+.btn-tap {
+  transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.btn-tap:active {
+  transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-tap:active {
+    transform: none;
+  }
+}
+
+/* Единый акцентный фокус-ринг вместо стандартного браузерного контура */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(201, 154, 68, 0.4);
+}
+
+/* Отступы под "чёлку" и домашнюю полосу iPhone */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pb-safe-nav {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
 }

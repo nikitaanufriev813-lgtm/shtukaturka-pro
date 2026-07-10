@@ -128,7 +128,7 @@ export default function NewReportPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 rounded-lg bg-brand py-2.5 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
+          className="btn-tap mt-2 rounded-lg bg-brand py-2.5 font-semibold text-white hover:bg-brand-light disabled:opacity-60"
         >
           {loading ? "Сохраняем…" : "Отправить отчёт"}
         </button>

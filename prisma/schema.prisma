@@ -61,6 +61,7 @@ model User {
   name          String
   role          Role      @default(CLIENT)
   telegramChatId String?
+  avatarUrl     String?
   createdAt     DateTime  @default(now())
 
   projectsAsClient  Project[] @relation("ClientProjects")
@@ -68,6 +69,7 @@ model User {
   reports           Report[]
   messages          Message[]
   notifications     Notification[]
+  plasterMixes      PlasterMix[]
 }
 
 model Project {
@@ -90,7 +92,11 @@ model Project {
   reports         Report[]
   projectMaterials ProjectMaterial[]
   estimateItems   EstimateItem[]
+  estimateSnapshots EstimateSnapshot[]
   measureSquareImports MeasureSquareImport[]
+  laborCosts      LaborCost[]
+  camera          Camera?
+  reviews         Review[]
   documents       Document[]
   payments        Payment[]
   messages        Message[]
@@ -102,11 +108,25 @@ model Room {
   projectId       String
   project         Project    @relation(fields: [projectId], references: [id])
   name            String
-  area            Float
+  area            Float      // общая площадь под штукатурку (стены+потолок) — используется в прогрессе проекта
   status          RoomStatus @default(PENDING)
   progressPercent Int        @default(0)
   planCoordX      Float?
   planCoordY      Float?
+
+  // Параметры комнаты для калькулятора материалов
+  wallArea            Float?   // квадратура стен под штукатурку
+  floorArea           Float?   // квадратура пола (справочно)
+  windowArea          Float?   // площадь окон (вычитается из площади стен)
+  perimeter           Float?   // периметр стен — нужен для маяков/сетки
+  height              Float?   @default(2.7) // высота потолков, м
+  slopeLinearMeters   Float?   // погонные метры откосов (окна/двери)
+  meshJointsMeters     Float?   // погонные метры стыков под армирующую сетку
+  thicknessMm         Int?     @default(15) // выбранная толщина слоя штукатурки
+  selectedMixId       String?
+  selectedMix         PlasterMix? @relation(fields: [selectedMixId], references: [id])
+  selectedPrimerId    String?
+  selectedPrimer      Primer?     @relation(fields: [selectedPrimerId], references: [id])
 
   // Данные LiDAR-скана (из собственного iOS-модуля на базе Apple RoomPlan)
   scanSource      String?    // "ROOMPLAN_NATIVE" | "MANUAL" | null
@@ -157,10 +177,80 @@ model Material {
   id            String   @id @default(cuid())
   name          String
   unit          String
-  pricePerUnit  Float?
+  pricePerUnit  Float?   // цена для клиента (в смете)
+  costPerUnit   Float?   // закупочная цена компании — видна только бригадиру/админу
 
   reportMaterials  ReportMaterial[]
   projectMaterials ProjectMaterial[]
+}
+
+// Прочие расходы по объекту (зарплата бригады, транспорт, аренда техники и т.д.)
+// Видно только FOREMAN/ADMIN — это внутренняя экономика, не для клиента.
+model LaborCost {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  addedById   String
+}
+
+// Камера на объекте, стримящая через Mux (или любой RTMP-совместимый провайдер).
+// streamKey — секрет для устройства-камеры, никогда не отдаётся клиенту.
+// playbackId — публичный идентификатор для встраивания плеера клиенту.
+model Camera {
+  id          String   @id @default(cuid())
+  projectId   String   @unique
+  project     Project  @relation(fields: [projectId], references: [id])
+  provider    String   @default("MUX")
+  streamKey   String   // секретно, только для устройства камеры
+  playbackId  String   // публично, для плеера клиента
+  status      String   @default("IDLE") // IDLE | ACTIVE | ERRORED
+  createdAt   DateTime @default(now())
+}
+
+// Смеси для механизированной штукатурки — база + пользовательские.
+// Расход задаётся отдельно на 4 стандартные толщины слоя (кг/м²).
+model PlasterMix {
+  id                String   @id @default(cuid())
+  name              String   // "Jatbay", "Magma", "Volma", "Knauf MP 75" или своя
+  brand             String?
+  consumption10mm   Float    // кг/м² при толщине 10мм
+  consumption15mm   Float    // кг/м² при толщине 15мм
+  consumption20mm   Float    // кг/м² при толщине 20мм
+  consumption25mm   Float    // кг/м² при толщине 25мм
+  bagWeightKg       Float    @default(30)
+  pricePerBag       Float?
+  isCustom          Boolean  @default(false)
+  createdById       String?
+  createdBy         User?    @relation(fields: [createdById], references: [id])
+  createdAt         DateTime @default(now())
+
+  rooms             Room[]
+}
+
+// Грунтовки — расход задаётся одним значением на м² (не зависит от толщины штукатурки).
+model Primer {
+  id                String   @id @default(cuid())
+  name              String   // "Бетоноконтакт", "Knauf Tiefengrund", "Mittelgrund"
+  consumptionPerM2  Float    // кг или л на м²
+  unit              String   @default("л") // "л" | "кг"
+  containerVolume   Float    @default(10) // объём одной канистры/ведра
+  pricePerContainer Float?
+
+  rooms             Room[]
+}
+
+// Снимок полной сметы объекта на определённую дату — история расчётов.
+model EstimateSnapshot {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id])
+  totalCost     Float
+  breakdownJson Json     // построчная разбивка на момент сохранения
+  createdById   String?
+  createdAt     DateTime @default(now())
 }
 
 model ReportMaterial {
@@ -237,11 +327,28 @@ model QualityChecklist {
 
 model Review {
   id        String   @id @default(cuid())
-  stageId   String
-  stage     Stage    @relation(fields: [stageId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  stageId   String?
+  stage     Stage?   @relation(fields: [stageId], references: [id])
+  authorId  String?
   rating    Int
   comment   String?
+  published Boolean  @default(false) // модерация: попадает на публичную страницу только после одобрения ADMIN
   createdAt DateTime @default(now())
+}
+
+// Заявка от потенциального клиента на просмотр объекта/консультацию —
+// заполняется на публичном сайте, без регистрации.
+model Lead {
+  id             String   @id @default(cuid())
+  name           String
+  phone          String
+  address        String?
+  preferredDate  DateTime?
+  comment        String?
+  status         String   @default("NEW") // NEW | CONTACTED | SCHEDULED | CLOSED
+  createdAt      DateTime @default(now())
 }
 
 model Document {
